@@ -1,0 +1,411 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────
+
+enum OrgRole {
+  OWNER
+  MEMBER
+}
+
+enum ProjectRole {
+  MANAGER
+  MEMBER
+}
+
+enum ProjectStatus {
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+enum CardPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum CardStatus {
+  TODO
+  IN_PROGRESS
+  BLOCKED
+  IN_REVIEW
+  DONE
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  REVOKED
+}
+
+enum NotificationType {
+  CARD_ASSIGNED
+  DEADLINE_APPROACHING
+  DEADLINE_OVERDUE
+  COMMENT_ADDED
+  CARD_MOVED
+  CHECKLIST_COMPLETED
+  MENTIONED
+}
+
+// ─────────────────────────────────────────
+// USER
+// ─────────────────────────────────────────
+
+model User {
+  id             String          @id @default(cuid())
+  email          String          @unique
+  name           String?
+  avatarUrl      String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  orgs           OrgMember[]
+  projectMembers ProjectMember[]
+  cardMembers    CardMember[]
+  comments       Comment[]
+  activities     Activity[]
+  notifications  Notification[]
+  timeLogs       TimeLog[]
+  savedReports   SavedReport[]
+  sentInvitations Invitation[]   @relation("InvitedBy")
+  assignedItems  ChecklistItem[] @relation("ChecklistAssignee")
+}
+
+// ─────────────────────────────────────────
+// ORGANIZATION
+// ─────────────────────────────────────────
+
+model Organization {
+  id          String       @id @default(cuid())
+  name        String
+  slug        String       @unique
+  logoUrl     String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  members     OrgMember[]
+  projects    Project[]
+  invitations Invitation[]
+}
+
+model OrgMember {
+  id             String       @id @default(cuid())
+  role           OrgRole      @default(MEMBER)
+  userId         String
+  organizationId String
+  createdAt      DateTime     @default(now())
+
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId])
+}
+
+// ─────────────────────────────────────────
+// INVITATION
+// ─────────────────────────────────────────
+
+model Invitation {
+  id             String           @id @default(cuid())
+  email          String
+  role           OrgRole          @default(MEMBER)
+  status         InvitationStatus @default(PENDING)
+  organizationId String
+  invitedById    String
+  expiresAt      DateTime
+  createdAt      DateTime         @default(now())
+
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invitedBy      User             @relation("InvitedBy", fields: [invitedById], references: [id])
+
+  @@unique([email, organizationId])
+}
+
+// ─────────────────────────────────────────
+// PROJECT
+// ─────────────────────────────────────────
+
+model Project {
+  id             String          @id @default(cuid())
+  name           String
+  description    String?
+  status         ProjectStatus   @default(ACTIVE)
+  startDate      DateTime?
+  deadline       DateTime?
+  organizationId String
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  members        ProjectMember[]
+  boards         Board[]
+  savedReports   SavedReport[]
+}
+
+model ProjectMember {
+  id        String      @id @default(cuid())
+  role      ProjectRole @default(MEMBER)
+  userId    String
+  projectId String
+  createdAt DateTime    @default(now())
+
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project   Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, projectId])
+}
+
+// ─────────────────────────────────────────
+// BOARD
+// ─────────────────────────────────────────
+
+model Board {
+  id        String   @id @default(cuid())
+  name      String
+  color     String?
+  projectId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  lists     List[]
+  labels    Label[]
+}
+
+// ─────────────────────────────────────────
+// LIST
+// ─────────────────────────────────────────
+
+model List {
+  id        String   @id @default(cuid())
+  name      String
+  position  Float
+  boardId   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  board     Board    @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  cards     Card[]
+}
+
+// ─────────────────────────────────────────
+// CARD
+// ─────────────────────────────────────────
+
+model Card {
+  id          String       @id @default(cuid())
+  title       String
+  description String?
+  position    Float
+  status      CardStatus   @default(TODO)
+  priority    CardPriority @default(MEDIUM)
+  startDate   DateTime?
+  dueDate     DateTime?
+  completedAt DateTime?
+  isArchived  Boolean      @default(false)
+  listId      String
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  list        List          @relation(fields: [listId], references: [id], onDelete: Cascade)
+  members     CardMember[]
+  labels      CardLabel[]
+  attachments Attachment[]
+  comments    Comment[]
+  checklists  Checklist[]
+  activities  Activity[]
+  timeLogs    TimeLog[]
+  notifications Notification[]
+}
+
+model CardMember {
+  id     String @id @default(cuid())
+  cardId String
+  userId String
+
+  card   Card   @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([cardId, userId])
+}
+
+// ─────────────────────────────────────────
+// LABELS
+// ─────────────────────────────────────────
+
+model Label {
+  id      String      @id @default(cuid())
+  name    String
+  color   String
+  boardId String
+
+  board   Board       @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  cards   CardLabel[]
+}
+
+model CardLabel {
+  cardId  String
+  labelId String
+
+  card    Card   @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  label   Label  @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@id([cardId, labelId])
+}
+
+// ─────────────────────────────────────────
+// ATTACHMENTS
+// ─────────────────────────────────────────
+
+model Attachment {
+  id        String   @id @default(cuid())
+  name      String
+  url       String
+  mimeType  String?
+  size      Int?
+  cardId    String
+  createdAt DateTime @default(now())
+
+  card      Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+}
+
+// ─────────────────────────────────────────
+// COMMENTS & CHAT
+// ─────────────────────────────────────────
+
+model Comment {
+  id          String              @id @default(cuid())
+  content     String
+  cardId      String
+  userId      String
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  card        Card                @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attachments CommentAttachment[]
+}
+
+model CommentAttachment {
+  id        String   @id @default(cuid())
+  name      String
+  url       String
+  mimeType  String?
+  size      Int?
+  commentId String
+  createdAt DateTime @default(now())
+
+  comment   Comment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+}
+
+// ─────────────────────────────────────────
+// CHECKLISTS
+// ─────────────────────────────────────────
+
+model Checklist {
+  id        String          @id @default(cuid())
+  title     String
+  position  Float
+  cardId    String
+  createdAt DateTime        @default(now())
+
+  card      Card            @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  items     ChecklistItem[]
+}
+
+model ChecklistItem {
+  id          String    @id @default(cuid())
+  title       String
+  isCompleted Boolean   @default(false)
+  position    Float
+  dueDate     DateTime?
+  assigneeId  String?
+  checklistId String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  checklist   Checklist @relation(fields: [checklistId], references: [id], onDelete: Cascade)
+  assignee    User?     @relation("ChecklistAssignee", fields: [assigneeId], references: [id])
+}
+
+// ─────────────────────────────────────────
+// ACTIVITY LOG
+// ─────────────────────────────────────────
+
+model Activity {
+  id        String   @id @default(cuid())
+  action    String   // e.g. "moved card to Done", "assigned John"
+  cardId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  card      Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ─────────────────────────────────────────
+// NOTIFICATIONS
+// ─────────────────────────────────────────
+
+model Notification {
+  id        String           @id @default(cuid())
+  type      NotificationType
+  message   String
+  isRead    Boolean          @default(false)
+  userId    String
+  cardId    String?
+  createdAt DateTime         @default(now())
+
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  card      Card?            @relation(fields: [cardId], references: [id], onDelete: SetNull)
+}
+
+// ─────────────────────────────────────────
+// TIME TRACKING
+// ─────────────────────────────────────────
+
+model TimeLog {
+  id          String   @id @default(cuid())
+  minutes     Int
+  description String?
+  cardId      String
+  userId      String
+  loggedAt    DateTime @default(now())
+
+  card        Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ─────────────────────────────────────────
+// SAVED REPORTS
+// ─────────────────────────────────────────
+
+model SavedReport {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  filters     Json     // { projectId, userId, status, dateRange, priority }
+  createdById String
+  projectId   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
