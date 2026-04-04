@@ -3,7 +3,6 @@ import { createClient } from '@/src/lib/supabase/server'
 import { prisma } from '@/src/lib/prisma'
 import { BoardHeader } from '@/src/components/shared/BoardHeader'
 import { BoardCanvas } from '@/src/components/shared/BoardCanvas'
-import type { BoardWithRelations } from '@/src/types'
 import { FilterBar } from '@/src/components/shared/FilterBar'
 
 export default async function BoardPage({
@@ -14,8 +13,10 @@ export default async function BoardPage({
   const { projectId, boardId } = await params
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
+  
   if (!user) notFound()
 
+  // 👇 Removed the "as BoardWithRelations" cast so Prisma infers types perfectly
   const board = await prisma.board.findUnique({
     where: { id: boardId },
     include: {
@@ -30,6 +31,10 @@ export default async function BoardPage({
               },
             },
           },
+          // Fetch explicit Project members so we can find user role
+          members: {
+            where: { userId: user.id }
+          }
         },
       },
       lists: {
@@ -47,17 +52,48 @@ export default async function BoardPage({
         },
       },
     },
-  }) as BoardWithRelations | null
+  })
 
   if (!board || board.project.id !== projectId) notFound()
+
+  // 1. Get explicit Organization role to securely determine God Mode
+  const orgMember = await prisma.orgMember.findUnique({
+    where: {
+      userId_organizationId: {
+        userId: user.id,
+        organizationId: board.project.organizationId
+      }
+    }
+  })
+
+  if (!orgMember) notFound()
+
+  // 2. Determine Role exactly as expected by BoardCanvas
+  // Prisma knows members exists because of the `include` above
+  const currentProjectMember = board.project.members[0]
+  
+  let calculatedRole: 'ADMIN' | 'MEMBER' | 'VIEWER' = 'VIEWER'
+
+  // If they are an Org Owner OR a Project Manager, they get full ADMIN access on the board
+  if (orgMember.role === 'OWNER' || currentProjectMember?.role === 'MANAGER') {
+    calculatedRole = 'ADMIN'
+  } else if (currentProjectMember?.role === 'MEMBER') {
+    calculatedRole = 'MEMBER'
+  }
 
   const orgMembers = board.project.organization.members.map(m => m.user)
 
   return (
     <div className="flex flex-col h-screen overflow-hidden">
-      <BoardHeader board={board} project={board.project} />
+      <BoardHeader board={board as any} project={board.project as any} />
       <FilterBar members={orgMembers} />
-      <BoardCanvas initialLists={board.lists} boardId={boardId} />
+      {/* Explicitly pass the calculated userRole down! */}
+      <BoardCanvas 
+        initialLists={board.lists as any} 
+        boardId={boardId} 
+        userRole={calculatedRole} 
+        currentUserId={user.id} 
+      />
     </div>
   )
 }

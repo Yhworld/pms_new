@@ -36,16 +36,21 @@ export async function createProject(formData: FormData) {
   const deadline = formData.get('deadline') as string
 
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Unauthorized' }
 
+  // 1. Fetch the creator's role
   const member = await prisma.orgMember.findUnique({
     where: { userId_organizationId: { userId: user.id, organizationId: orgId } },
   })
 
+  // (Optional: You can remove this check if you want Org MEMBERs to be able to create projects too)
   if (!member || member.role !== 'OWNER') return { error: 'Not authorized' }
+
+  // 2. Fetch ALL Org Owners so they can be auto-assigned
+  const orgOwners = await prisma.orgMember.findMany({
+    where: { organizationId: orgId, role: 'OWNER' }
+  })
 
   try {
     const project = await prisma.$transaction(async (tx) => {
@@ -59,22 +64,29 @@ export async function createProject(formData: FormData) {
         },
       })
 
-      await tx.projectMember.create({
-        data: {
-          userId: user.id,
-          projectId: p.id,
-          role: 'MANAGER',
-        },
+      // 3. Prepare the list of managers (All Org Owners)
+      const membersData = orgOwners.map((owner) => ({
+        userId: owner.userId,
+        projectId: p.id,
+        role: 'MANAGER' as any // Prisma enum type
+      }))
+
+      // Ensure the creator is always added, even if they aren't an owner
+      if (!membersData.some(m => m.userId === user.id)) {
+        membersData.push({ userId: user.id, projectId: p.id, role: 'MANAGER' as any })
+      }
+
+      // Auto-add everyone
+      await tx.projectMember.createMany({
+        data: membersData,
       })
 
       return p
     })
 
-    revalidatePath('/')
-    revalidatePath(`/projects/${project.id}`)
-
     return { projectId: project.id }
-  } catch {
+  } catch (error) {
+    console.error(error)
     return { error: 'Failed to create project' }
   }
 }
@@ -135,7 +147,7 @@ export async function deleteProject(projectId: string) {
 export async function addProjectMember(
   projectId: string,
   userId: string,
-  role: 'MANAGER' | 'MEMBER'
+  role: 'MANAGER' | 'MEMBER' 
 ) {
   const supabase = await createClient()
   const {

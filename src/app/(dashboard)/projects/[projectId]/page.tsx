@@ -7,7 +7,7 @@ import { formatDate } from '@/src/lib/utlis'
 import { CreateBoardDialog } from '@/src/components/shared/CreateBoardDialog'
 import { BoardCard } from '@/src/components/shared/BoardCard'
 import { AddProjectMemberDialog } from '@/src/components/shared/AddProjectMemberDialog'
-import { ProjectSettingsDialog } from '@/src/components/shared/ProjectSettingsDialog' // <-- NEW: Added import
+import { ProjectSettingsDialog } from '@/src/components/shared/ProjectSettingsDialog'
 
 export default async function ProjectPage({
   params,
@@ -19,6 +19,9 @@ export default async function ProjectPage({
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
+  if (!user) notFound()
+
+  // 1. Fetch the project without trying to nest the org members
   const project = await prisma.project.findUnique({
     where: { id: projectId },
     include: {
@@ -38,10 +41,24 @@ export default async function ProjectPage({
 
   if (!project) notFound()
 
-  const currentMember = project.members.find((m) => m.userId === user!.id)
-  if (!currentMember) notFound()
+  // 2. Determine user's specific project role (MANAGER or MEMBER)
+  const currentMember = project.members.find((m) => m.userId === user.id)
+  
+  // 3. Explicitly query the user's Organization role to guarantee it doesn't fail silently
+  const orgMember = await prisma.orgMember.findUnique({
+    where: {
+      userId_organizationId: {
+        userId: user.id,
+        organizationId: project.organizationId
+      }
+    }
+  })
 
-  const isManager = currentMember.role === 'MANAGER'
+  // If they aren't even a member of the organization, boot them out
+  if (!orgMember) notFound()
+
+  // ── FIX: Grant Manager UI if they are a Project MANAGER OR an Org OWNER
+  const isManager = currentMember?.role === 'MANAGER' || orgMember.role === 'OWNER'
 
   // ─── Overdue Logic ────────────────────────────────────────────────────────────
   const isOverdue = project.deadline && 
@@ -85,13 +102,13 @@ export default async function ProjectPage({
 
             {/* Manager Actions */}
             {isManager && (
-              <div className="shrink-0 flex items-center gap-2"> {/* <-- NEW: Added flex container */}
+              <div className="shrink-0 flex items-center gap-2">
                 <AddProjectMemberDialog
                   projectId={project.id}
                   orgId={project.organizationId}
                   existingMemberIds={project.members.map((m) => m.userId)}
                 />
-                <ProjectSettingsDialog project={project} /> {/* <-- NEW: Settings component */}
+                <ProjectSettingsDialog project={project} />
               </div>
             )}
           </div>

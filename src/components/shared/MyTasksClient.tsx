@@ -6,8 +6,9 @@ import { isPast, differenceInDays } from 'date-fns'
 import { formatDate, isOverdue } from '@/src/lib/utlis'
 import { CardDetailSheet } from '@/src/components/shared/CardDetailSheet'
 
-// Expanded type to include our new dynamic permission
-type Task = any // Use your Prisma return type here if you have one exported!
+// We use `any` here for brevity to ensure it compiles instantly, 
+// but it represents your full Prisma Card payload including the new `canEdit` boolean.
+type Task = any 
 
 interface MyTasksClientProps {
   initialTasks: Task[]
@@ -15,9 +16,10 @@ interface MyTasksClientProps {
 }
 
 export function MyTasksClient({ initialTasks, currentUserId }: MyTasksClientProps) {
-  // NEW: Store the whole task object so we know its permissions
+  // Store the entire task object so we know its specific permissions
   const [activeTask, setActiveTask] = useState<Task | null>(null)
 
+  // Priority visual map
   const priorityColors: Record<string, string> = {
     LOW: 'bg-zinc-100 text-zinc-600',
     MEDIUM: 'bg-blue-100 text-blue-700',
@@ -37,6 +39,7 @@ export function MyTasksClient({ initialTasks, currentUserId }: MyTasksClientProp
         </div>
       ) : (
         <div className="bg-white border border-zinc-200 rounded-2xl shadow-sm overflow-hidden">
+          {/* Header Row */}
           <div className="grid grid-cols-[1fr_150px_120px_100px] items-center px-6 py-3 border-b border-zinc-100 bg-zinc-50/50 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">
             <div>Task</div>
             <div>Project Context</div>
@@ -44,6 +47,7 @@ export function MyTasksClient({ initialTasks, currentUserId }: MyTasksClientProp
             <div className="text-right">Priority</div>
           </div>
 
+          {/* Task Rows */}
           <div className="divide-y divide-zinc-100 flex flex-col">
             {initialTasks.map((task) => {
               const overdue = isOverdue(task.dueDate)
@@ -52,14 +56,16 @@ export function MyTasksClient({ initialTasks, currentUserId }: MyTasksClientProp
               return (
                 <button
                   key={task.id}
-                  onClick={() => setActiveTask(task)} // <-- NEW: Set the whole task
+                  onClick={() => setActiveTask(task)} // Sets the whole task in state
                   className="grid grid-cols-[1fr_150px_120px_100px] items-center px-6 py-4 hover:bg-zinc-50 transition-colors text-left group"
                 >
+                  {/* Column 1: Task Title & Meta */}
                   <div className="flex flex-col gap-1.5 min-w-0 pr-4">
                     <span className="text-[14px] font-medium text-zinc-900 truncate group-hover:text-blue-600 transition-colors">
                       {task.title}
                     </span>
                     
+                    {/* Meta Badges (Status, Comments, Attachments) */}
                     <div className="flex items-center gap-3 text-zinc-400">
                       <span className="text-[12px] px-2 py-0.5 rounded-md bg-zinc-100 text-zinc-600 font-medium">
                         {task.status.replace('_', ' ')}
@@ -78,6 +84,7 @@ export function MyTasksClient({ initialTasks, currentUserId }: MyTasksClientProp
                     </div>
                   </div>
 
+                  {/* Column 2: Project / Board Context */}
                   <div className="flex flex-col min-w-0 pr-4">
                     <span className="text-[13px] text-zinc-900 truncate flex items-center gap-1.5">
                       <LayoutDashboard className="h-3.5 w-3.5 text-zinc-400 shrink-0" />
@@ -88,6 +95,7 @@ export function MyTasksClient({ initialTasks, currentUserId }: MyTasksClientProp
                     </span>
                   </div>
 
+                  {/* Column 3: Due Date */}
                   <div className="flex items-center">
                     {task.dueDate ? (
                       <div className={`flex items-center gap-1.5 text-[12px] font-medium px-2 py-1 rounded-md ${
@@ -105,6 +113,7 @@ export function MyTasksClient({ initialTasks, currentUserId }: MyTasksClientProp
                     )}
                   </div>
 
+                  {/* Column 4: Priority */}
                   <div className="flex justify-end">
                     <span className={`flex items-center justify-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold tracking-wide ${priorityColors[task.priority] || priorityColors.LOW}`}>
                       {task.priority === 'URGENT' && <SignalHigh className="h-3 w-3" />}
@@ -118,11 +127,16 @@ export function MyTasksClient({ initialTasks, currentUserId }: MyTasksClientProp
         </div>
       )}
 
-      {/* ── NEW: Pass dynamic `canEdit` to the Sheet ── */}
+      {/* ── The Magic Sheet ── */}
+      {/* 
+        Passes the activeTask.canEdit boolean.
+        If the user is a MEMBER on the project this task belongs to, they will see a Read-Only view.
+        If the user is a MANAGER on the project, they will be able to edit. 
+      */}
       <CardDetailSheet
         cardId={activeTask?.id || null}
         onClose={() => setActiveTask(null)}
-        canEdit={activeTask?.canEdit || false} // Now strictly enforced based on Project Role!
+        canEdit={activeTask?.canEdit || false} 
         currentUserId={currentUserId}
       />
     </>

@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useTransition } from 'react'
 import { format } from 'date-fns'
+import ReactMarkdown from 'react-markdown' // <-- NEW: Markdown renderer
+import remarkGfm from 'remark-gfm'         // <-- NEW: GitHub Flavored Markdown (tables, checklists, etc)
 import {
   Sheet, SheetContent,
 } from '@/src/components/ui/sheet'
@@ -203,17 +205,23 @@ export function CardDetailSheet({
                   </h1>
                 </div>
 
+                {/* ── UPDATED Description Box (Markdown) ── */}
                 <section className="mb-12">
                   {editingDesc ? (
                     <div className="flex flex-col gap-3 animate-in fade-in slide-in-from-top-1">
-                      <Textarea
-                        value={desc}
-                        onChange={(e) => setDesc(e.target.value)}
-                        rows={4}
-                        placeholder="Write a description..."
-                        autoFocus
-                        className="text-[15px] leading-relaxed resize-none focus-visible:ring-1 focus-visible:ring-zinc-300 border-zinc-200"
-                      />
+                      <div className="relative">
+                        <Textarea
+                          value={desc}
+                          onChange={(e) => setDesc(e.target.value)}
+                          rows={6}
+                          placeholder="Write a description... (Markdown supported)"
+                          autoFocus
+                          className="text-[14px] leading-relaxed resize-none focus-visible:ring-1 focus-visible:ring-zinc-300 border-zinc-200 font-mono bg-zinc-50/50 pb-8"
+                        />
+                        <div className="absolute bottom-2 right-2 text-[10px] font-semibold text-zinc-400 uppercase tracking-wider bg-zinc-100 px-2 py-1 rounded select-none">
+                          Markdown
+                        </div>
+                      </div>
                       <div className="flex gap-2">
                         <Button size="sm" onClick={handleSaveDesc} className="bg-zinc-900 text-white hover:bg-zinc-800">
                           Save
@@ -226,17 +234,27 @@ export function CardDetailSheet({
                   ) : (
                     <div
                       onClick={() => canEdit && setEditingDesc(true)}
-                      className={`text-[15px] leading-relaxed whitespace-pre-wrap -ml-3 p-3 rounded-lg transition-colors border border-transparent ${
+                      className={`text-[15px] leading-relaxed -ml-3 p-3 rounded-lg transition-colors border border-transparent ${
                         card.description 
-                          ? `text-zinc-700 ${canEdit ? 'hover:bg-zinc-50 cursor-pointer' : ''}` 
+                          ? `text-zinc-800 ${canEdit ? 'hover:bg-zinc-50 cursor-pointer' : ''}` 
                           : `text-zinc-400 ${canEdit ? 'hover:border-zinc-200 border-dashed cursor-text' : ''}`
                       }`}
                     >
-                      {card.description || 'Add a description...'}
+                      {card.description ? (
+                        // The typography plugin makes the prose class work beautifully
+                        <article className="prose prose-sm prose-zinc max-w-none prose-p:leading-relaxed prose-pre:bg-zinc-900 prose-pre:text-zinc-50 prose-a:text-blue-600 hover:prose-a:text-blue-500">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {card.description}
+                          </ReactMarkdown>
+                        </article>
+                      ) : (
+                        'Add a description...'
+                      )}
                     </div>
                   )}
                 </section>
 
+                {/* ── Checklists ── */}
                 {card.checklists.length > 0 && (
                   <section className="flex flex-col gap-8 mb-12">
                     {card.checklists.map((checklist) => {
@@ -343,6 +361,7 @@ export function CardDetailSheet({
 
                 <div className="h-px bg-zinc-100 w-full mb-10" aria-hidden="true" />
 
+                {/* ── Activity / Comments ── */}
                 <section>
                   <h3 className="text-[15px] font-semibold text-zinc-900 mb-6">Activity</h3>
                   
@@ -418,6 +437,7 @@ export function CardDetailSheet({
                 </section>
               </div>
 
+              {/* ── Sidebar Properties ── */}
               <div className="w-[300px] shrink-0 border-l border-zinc-100 bg-zinc-50/50 px-6 py-8 flex flex-col gap-8 overflow-y-auto custom-scrollbar">
                 
                 <div className="flex flex-col">
