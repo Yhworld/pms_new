@@ -47,6 +47,11 @@ export default async function BoardPage({
               members: { include: { user: true } },
               labels: { include: { label: true } },
               _count: { select: { comments: true, attachments: true } },
+              checklists: {
+      include: {
+        items: { select: { isCompleted: true } },
+      },
+    },
             },
           },
         },

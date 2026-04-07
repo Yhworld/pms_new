@@ -9,24 +9,37 @@ interface BoardCardProps {
     _count: { lists: number }
   }
   projectId: string
+  checklistProgress: {
+    total: number
+    completed: number
+  }
 }
 
-export function BoardCard({ board, projectId }: BoardCardProps) {
-  // Using a sleek slate as the fallback if no color is provided
+export function BoardCard({ board, projectId, checklistProgress }: BoardCardProps) {
   const bgColor = board.color ?? '#0f172a'
+
+  const { total, completed } = checklistProgress
+  const percent = total > 0 ? Math.round((completed / total) * 100) : 0
+  const hasItems = total > 0
+
+  // Color shifts green as it approaches 100%
+  const barColor =
+    percent === 100
+      ? '#16a34a'  // green-600
+      : percent >= 50
+      ? '#2563eb'  // blue-600
+      : '#94a3b8'  // slate-400
 
   return (
     <Link href={`/projects/${projectId}/boards/${board.id}`} className="group block h-full">
       <div className="relative flex flex-col h-full bg-white rounded-xl border border-zinc-200 shadow-sm transition-all duration-200 group-hover:-translate-y-1 group-hover:shadow-md group-hover:border-zinc-300 overflow-hidden">
-        
-        {/* ── Elegant Color Header ── */}
-        <div 
+
+        {/* ── Color Header ── */}
+        <div
           className="h-12 w-full relative flex-shrink-0"
           style={{ backgroundColor: bgColor }}
         >
-          {/* Subtle gradient overlay gives the flat color dimension and a glass-like depth */}
           <div className="absolute inset-0 bg-gradient-to-b from-white/20 to-black/5 mix-blend-overlay" />
-          {/* A crisp 1px inner top highlight to catch the "light" */}
           <div className="absolute inset-0 shadow-[inset_0_1px_0_rgba(255,255,255,0.25)]" />
         </div>
 
@@ -39,18 +52,37 @@ export function BoardCard({ board, projectId }: BoardCardProps) {
           </div>
 
           {/* ── Footer / Metadata ── */}
-          {/* The border-t anchors the metadata to the bottom of the card beautifully */}
           <div className="flex items-center justify-between mt-auto pt-4 border-t border-zinc-100">
             <div className="flex items-center gap-2 text-[13px] font-medium text-zinc-500">
               <LayoutList className="h-4 w-4 text-zinc-400" />
               <span>{board._count.lists} list{board._count.lists !== 1 ? 's' : ''}</span>
             </div>
-            
-            {/* Pro Micro-interaction: Hidden arrow that slides in on hover */}
-            <div className="h-6 w-6 rounded-full bg-zinc-100 flex items-center justify-center opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300 ease-out">
-              <ArrowRight className="h-3.5 w-3.5 text-zinc-600" />
-            </div>
+
+            {/* Checklist count badge — only when items exist */}
+            {hasItems && (
+              <span className="text-[11px] font-medium text-zinc-400">
+                {completed}/{total} done
+              </span>
+            )}
+
+            {/* Hover arrow — hidden when checklist badge is showing */}
+            {!hasItems && (
+              <div className="h-6 w-6 rounded-full bg-zinc-100 flex items-center justify-center opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300 ease-out">
+                <ArrowRight className="h-3.5 w-3.5 text-zinc-600" />
+              </div>
+            )}
           </div>
+        </div>
+
+        {/* ── Progress Bar (bottom of card) ── */}
+        <div className="h-1.5 w-full bg-zinc-100">
+          <div
+            className="h-full rounded-full transition-all duration-500 ease-out"
+            style={{
+              width: hasItems ? `${percent}%` : '0%',
+              backgroundColor: barColor,
+            }}
+          />
         </div>
 
       </div>

@@ -1,7 +1,7 @@
 import type {
   User, Organization, OrgMember, Project,
   ProjectMember, CardMember,
-  CardLabel, Board, List, Card, Label,
+  CardLabel, Board, List, Card, Label, Checklist, ChecklistItem,
   OrgRole, ProjectRole, CardStatus, CardPriority
 } from '@prisma/client'
 
@@ -20,6 +20,9 @@ export type ProjectWithMembers = Project & {
 export type CardWithRelations = Card & {
   members: (CardMember & { user: User })[]
   labels: (CardLabel & { label: Label })[]
+  checklists: (Checklist & {
+    items: Pick<ChecklistItem, 'isCompleted'>[]
+  })[]
   _count: { comments: number; attachments: number; checklists: number }
 }
 

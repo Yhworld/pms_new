@@ -190,3 +190,34 @@ export async function getOrgMembersNotInProject(
 
   return orgMembers.map((m) => m.user)
 }
+
+export async function removeProjectMember(projectId: string, userId: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  // ✅ userId_projectId — matches @@unique([userId, projectId])
+  const requester = await prisma.projectMember.findUnique({
+    where: {
+      userId_projectId: { userId: user.id, projectId },
+    },
+  })
+
+  if (!requester || requester.role !== 'MANAGER') {
+    return { error: 'Only project managers can remove members.' }
+  }
+
+  if (userId === user.id) {
+    return { error: 'You cannot remove yourself from the project.' }
+  }
+
+  // ✅ userId_projectId here too
+  await prisma.projectMember.delete({
+    where: {
+      userId_projectId: { userId, projectId },
+    },
+  })
+
+  revalidatePath(`/org/[slug]/projects/${projectId}`)
+  return { success: true }
+}

@@ -8,7 +8,6 @@ export default async function RootPage() {
 
   if (!user) redirect('/login')
 
-  // Check if user has an org — if not, go to setup
   const orgMember = await prisma.orgMember.findFirst({
     where: { userId: user.id },
     include: { organization: true },
@@ -16,5 +15,5 @@ export default async function RootPage() {
 
   if (!orgMember) redirect('/setup')
 
-  redirect(`/org/${orgMember.organization.slug}`)
+  redirect(`/org/${orgMember.organization.slug}/dashboard`)  // ← was just /org/slug
 }

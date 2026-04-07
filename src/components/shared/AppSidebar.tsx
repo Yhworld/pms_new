@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, Users, Settings,
-  LogOut, ChevronsUpDown, CheckCircle2 // <-- NEW: Added CheckCircle2
+  LogOut, ChevronsUpDown, CheckCircle2, BarChart2 // <-- NEW: Added CheckCircle2
 } from 'lucide-react'
 import {
   Sidebar, SidebarContent, SidebarFooter,
@@ -26,32 +26,32 @@ export function AppSidebar({ org, userRole }: AppSidebarProps) {
   const base = `/org/${org.slug}`
 
   // ─── NEW: Added My Tasks to the navigation items
-  const navItems = [
-    {
-      label: 'My Tasks',
-      href: `${base}/my-tasks`, // Adjust this to match where you put the page.tsx!
-      icon: CheckCircle2,
-      ownerOnly: false,
-    },
-    {
-      label: 'Projects',
-      href: base,
-      icon: LayoutDashboard,
-      ownerOnly: false,
-    },
-    {
-      label: 'Members',
-      href: `${base}/members`,
-      icon: Users,
-      ownerOnly: false,
-    },
-    // {
-    //   label: 'Settings',
-    //   href: `${base}/settings`,
-    //   icon: Settings,
-    //   ownerOnly: true,
-    // },
-  ].filter(item => !item.ownerOnly || userRole === 'OWNER')
+const navItems = [
+  {
+    label: 'My Tasks',
+    href: `${base}/my-tasks`,
+    icon: CheckCircle2,
+    ownerOnly: false,
+  },
+  {
+    label: 'Dashboard',
+    href: `${base}/dashboard`,
+    icon: BarChart2,
+    ownerOnly: false,
+  },
+  {
+    label: 'Projects',
+    href: base,   // ← was just `base`
+    icon: LayoutDashboard,
+    ownerOnly: false,
+  },
+  {
+    label: 'Members',
+    href: `${base}/members`,
+    icon: Users,
+    ownerOnly: false,
+  },
+].filter(item => !item.ownerOnly || userRole === 'OWNER')
 
   return (
     <Sidebar className="border-r border-zinc-200/60 bg-zinc-50/30">

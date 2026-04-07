@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/src/lib/supabase/server'
 import { prisma } from '@/src/lib/prisma'
 import { slugify } from '@/src/lib/utlis'
+import { revalidatePath } from 'next/cache'
 
 export async function createOrg(formData: FormData) {
   const name = formData.get('name') as string
@@ -59,3 +60,87 @@ export async function createOrg(formData: FormData) {
   // ✅ redirect lives here — outside try/catch
   redirect(`/org/${orgSlug!}`)
 }
+
+export async function removeOrgMember(orgId: string, userId: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const requester = await prisma.orgMember.findUnique({
+    where: {
+      userId_organizationId: { userId: user.id, organizationId: orgId },
+    },
+  })
+
+  if (!requester || requester.role !== 'OWNER') {
+    return { error: 'Only organization owners can remove members.' }
+  }
+
+  if (userId === user.id) {
+    return { error: 'You cannot remove yourself from the organization.' }
+  }
+
+  // Get the user's email to revoke their invitations
+  const targetUser = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { email: true },
+  })
+
+  // Run both deletions in a transaction — atomic, all or nothing
+  await prisma.$transaction([
+    // 1. Remove org membership
+    prisma.orgMember.delete({
+      where: {
+        userId_organizationId: { userId, organizationId: orgId },
+      },
+    }),
+    // 2. Revoke any pending invitations for their email in this org
+    prisma.invitation.updateMany({
+      where: {
+        organizationId: orgId,
+        email: targetUser!.email,
+        status: 'PENDING',
+      },
+      data: { status: 'REVOKED' },
+    }),
+  ])
+
+  revalidatePath(`/org/[slug]/members`)
+  return { success: true }
+}
+
+
+export async function updateOrgMemberRole(
+  orgId: string,
+  userId: string,
+  role: 'OWNER' | 'MEMBER'
+) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const requester = await prisma.orgMember.findUnique({
+    where: {
+      userId_organizationId: { userId: user.id, organizationId: orgId },
+    },
+  })
+
+  if (!requester || requester.role !== 'OWNER') {
+    return { error: 'Only organization owners can change roles.' }
+  }
+
+  if (userId === user.id) {
+    return { error: 'You cannot change your own role.' }
+  }
+
+  await prisma.orgMember.update({
+    where: {
+      userId_organizationId: { userId, organizationId: orgId },
+    },
+    data: { role },
+  })
+
+  revalidatePath(`/org/[slug]/members`)
+  return { success: true }
+}
+
