@@ -44,7 +44,7 @@ export default async function SetupPage({
                 id="orgName"
                 name="orgName"
                 type="text"
-                placeholder="Acme Inc."
+                placeholder="Zecado Inc."
                 required
               />
             </div>

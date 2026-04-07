@@ -50,7 +50,7 @@ export async function inviteMember(formData: FormData) {
 
   // Send the email! (Replace 'yourdomain.com' with the domain you just verified)
   const { error: resendError } = await resend.emails.send({
-    from: 'Acme PMS <invites@theluul.com>', 
+    from: 'Zecado PMS <invites@theluul.com>', 
     to: email,
     subject: `You've been invited to join ${org?.name}`,
     html: `
